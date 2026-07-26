@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TRUCO</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --felt:       #1a3520;
+      --felt-light: #22452a;
+      --felt-dark:  #111e14;
+      --gold:       #c9a84c;
+      --gold-glow:  #e8c96a;
+      --gold-dim:   #7a6228;
+      --red:        #c0392b;
+      --red-bright: #e74c3c;
+      --cream:      #f5eed8;
+      --cream-dark: #ddd0a8;
+      --text-dim:   #8aab8e;
+      --ui-bg:      rgba(0,0,0,0.45);
+      --b-gold:     1px solid rgba(201,168,76,0.35);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--felt-dark);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'Barlow', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ── MESA ─────────────────────────────────────────── */
+    #mesa {
+      width: min(960px, 100vw);
+      min-height: 100dvh;
+      background: radial-gradient(ellipse 80% 60% at 50% 45%, var(--felt-light) 0%, var(--felt) 55%, var(--felt-dark) 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 16px 32px;
+      position: relative;
+    }
+    #mesa::before {
+      content:'';
+      position:absolute;
+      inset:0;
+      border:3px solid rgba(201,168,76,0.10);
+      pointer-events:none;
+    }
+
+    /* ── HEADER ───────────────────────────────────────── */
+    #header {
+      width:100%;
+      display:grid;
+      grid-template-columns:1fr auto 1fr;
+      align-items:center;
+      padding:18px 0 14px;
+      border-bottom:var(--b-gold);
+    }
+    .score-block { display:flex; flex-direction:column; gap:2px; }
+    .score-block.right { text-align:right; }
+    .score-label {
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:11px; letter-spacing:2px; text-transform:uppercase;
+      color:var(--text-dim);
+    }
+    .score-value {
+      font-family:'Playfair Display',serif;
+      font-size:42px; font-weight:900; line-height:1;
+      color:var(--cream); transition:color .25s;
+    }
+    .score-value.highlight { color:var(--gold-glow); text-shadow:0 0 24px rgba(232,201,106,.6); }
+    .logo { text-align:center; }
+    .logo-text {
+      font-family:'Playfair Display',serif;
+      font-size:28px; font-weight:900;
+      color:var(--gold); letter-spacing:6px; text-transform:uppercase;
+      text-shadow:0 0 40px rgba(201,168,76,.4);
+    }
+    .logo-sub {
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:10px; letter-spacing:3px; color:var(--gold-dim); text-transform:uppercase;
+    }
+    .pips { display:flex; gap:5px; margin-top:4px; }
+    .score-block.right .pips { justify-content:flex-end; }
+    .pip {
+      width:10px; height:10px; border-radius:50%;
+      border:1.5px solid var(--gold-dim); background:transparent;
+      transition:background .3s, border-color .3s;
+    }
+    .pip.filled { background:var(--gold); border-color:var(--gold-glow); }
+    .pip.pc-filled { background:var(--red); border-color:var(--red-bright); }
+
+    /* ── MENSAJE ──────────────────────────────────────── */
+    #mensaje-central {
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:20px; font-weight:600; letter-spacing:1px;
+      color:var(--gold-glow); text-align:center;
+      padding:14px 0 10px; min-height:52px;
+      text-shadow:0 0 20px rgba(232,201,106,.4);
+    }
+
+    /* ── ZONA PC (cartas boca abajo) ──────────────────── */
+    #zona-pc { display:flex; gap:14px; justify-content:center; margin-bottom:10px; }
+    .carta-pc {
+      width:72px; height:108px; border-radius:7px;
+      background:linear-gradient(135deg,#1c3a6e 0%,#0d1f3c 100%);
+      border:2px solid rgba(201,168,76,.3);
+      box-shadow:0 4px 18px rgba(0,0,0,.6);
+      display:flex; align-items:center; justify-content:center;
+      font-size:22px; color:rgba(201,168,76,.2);
+      font-family:'Playfair Display',serif;
+      transition:opacity .3s, transform .3s;
+    }
+    .carta-pc.revealed { opacity:0; transform:scale(.8); pointer-events:none; }
+
+    /* ── ARENA CENTRAL (vuelo de cartas) ──────────────── */
+    #arena {
+      position:relative;
+      width:100%;
+      height:220px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      margin:6px 0;
+    }
+
+    /* Duelos históricos pequeños */
+    #historial {
+      display:flex; gap:10px; justify-content:center;
+      flex-wrap:wrap; padding:4px 0 8px;
+      min-height:40px;
+    }
+    .mini-duelo {
+      background:var(--ui-bg);
+      border:var(--b-gold);
+      border-radius:8px;
+      padding:6px 14px;
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:13px; text-align:center;
+      backdrop-filter:blur(6px);
+      animation:fadeUp .3s ease forwards;
+    }
+    .mini-duelo .md-cartas { color:var(--cream-dark); margin-bottom:2px; }
+    .mini-duelo .md-res { font-weight:700; font-size:12px; letter-spacing:1px; }
+    .md-res.win  { color:var(--gold-glow); }
+    .md-res.lose { color:var(--red-bright); }
+    .md-res.draw { color:var(--text-dim); }
+
+    /* Cartas volando en la arena */
+    .fly-card {
+      position:absolute;
+      width:100px; height:152px;
+      border-radius:9px;
+      transform-style:preserve-3d;
+      transition:transform .55s cubic-bezier(.4,0,.2,1);
+      will-change:transform;
+      pointer-events:none;
+    }
+    .fly-card .face, .fly-card .back {
+      position:absolute; inset:0;
+      border-radius:9px;
+      backface-visibility:hidden;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:space-between;
+      padding:8px;
+    }
+    /* Front face = carta real */
+    .fly-card .face {
+      background:var(--cream);
+      border:2.5px solid #bba87a;
+      box-shadow:0 6px 24px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.8);
+      transform:rotateY(0deg);
+    }
+    .fly-card .face.espada { border-color:#4a7aad; }
+    .fly-card .face.basto  { border-color:#7a5c3a; }
+    .fly-card .face.oro    { border-color:#c9a84c; }
+    .fly-card .face.copa   { border-color:#a04a4a; }
+
+    .fly-card .back {
+      background:linear-gradient(135deg,#1c3a6e 0%,#0d1f3c 100%);
+      border:2px solid rgba(201,168,76,.3);
+      transform:rotateY(180deg);
+      font-size:30px; color:rgba(201,168,76,.2);
+      font-family:'Playfair Display',serif;
+      justify-content:center;
+    }
+
+    /* Estado: boca abajo → rotateY(180deg), boca arriba → rotateY(0) */
+    .fly-card.face-down  { transform:rotateY(180deg); }
+    .fly-card.face-up    { transform:rotateY(0deg); }
+
+    .fly-card .num-top { font-family:'Playfair Display',serif; font-size:20px; font-weight:900; align-self:flex-start; line-height:1; color:#1a1a1a; }
+    .fly-card .palo-icon { font-size:26px; line-height:1; }
+    .fly-card .num-bot { font-family:'Playfair Display',serif; font-size:20px; font-weight:900; align-self:flex-end; transform:rotate(180deg); line-height:1; color:#1a1a1a; }
+    .fly-card .peso-badge {
+      width:100%;
+      background:#1a3520;
+      border-radius:5px;
+      padding:2px 0;
+      text-align:center;
+    }
+    .fly-card .peso-badge .pb-label {
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:9px; letter-spacing:1px; text-transform:uppercase;
+      color:var(--text-dim); line-height:1.2; display:block;
+    }
+    .fly-card .peso-badge .pb-num {
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:18px; font-weight:700; line-height:1.1;
+      color:var(--gold-glow); display:block;
+    }
+
+    /* Resultado flash en arena */
+    #resultado-flash {
+      position:absolute;
+      bottom:10px;
+      left:50%; transform:translateX(-50%);
+      font-family:'Playfair Display',serif;
+      font-size:26px; font-weight:900;
+      color:var(--gold-glow);
+      text-shadow:0 0 30px rgba(232,201,106,.7);
+      opacity:0;
+      transition:opacity .4s;
+      white-space:nowrap;
+      pointer-events:none;
+    }
+    #resultado-flash.show { opacity:1; }
+
+    /* ── DIVIDER ──────────────────────────────────────── */
+    .divider {
+      width:100%; height:1px;
+      background:linear-gradient(90deg,transparent,rgba(201,168,76,.2),transparent);
+      margin:4px 0;
+    }
+
+    /* ── ZONA LABELS ──────────────────────────────────── */
+    .zone-label {
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:10px; letter-spacing:3px; text-transform:uppercase;
+      color:var(--text-dim); text-align:center; margin-bottom:6px;
+    }
+
+    /* ── CARTAS EN MANO ───────────────────────────────── */
+    #zona-mano { display:flex; gap:18px; justify-content:center; padding:12px 0; flex-wrap:wrap; }
+    #tantos-bar {
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:13px; letter-spacing:1px; color:var(--text-dim);
+      text-align:center; padding:4px 0 2px; min-height:22px;
+    }
+
+    .carta {
+      width:100px; height:152px; border-radius:9px;
+      background:var(--cream); color:#1a1a1a;
+      border:2.5px solid #bba87a;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:space-between;
+      padding:8px;
+      box-shadow:0 6px 24px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.8);
+      cursor:pointer; position:relative;
+      transition:transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s;
+      user-select:none;
+      animation:dealCard .4s cubic-bezier(.34,1.56,.64,1) forwards;
+    }
+    .carta:hover {
+      transform:translateY(-18px) rotate(-1deg) scale(1.04);
+      box-shadow:0 22px 40px rgba(0,0,0,.7),0 0 0 2px var(--gold);
+      z-index:10;
+    }
+    .carta:active { transform:translateY(-8px) scale(.97); }
+    .carta .num-top { font-family:'Playfair Display',serif; font-size:20px; font-weight:900; align-self:flex-start; line-height:1; }
+    .carta .palo-icon { font-size:26px; line-height:1; }
+    .carta .num-bot { font-family:'Playfair Display',serif; font-size:20px; font-weight:900; align-self:flex-end; transform:rotate(180deg); line-height:1; }
+    .carta .peso-badge {
+      width:100%; background:#1a3520; border-radius:5px;
+      padding:2px 0; text-align:center;
+    }
+    .carta .peso-badge .pb-label {
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:9px; letter-spacing:1px; text-transform:uppercase;
+      color:var(--text-dim); line-height:1.2; display:block;
+    }
+    .carta .peso-badge .pb-num {
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:18px; font-weight:700; line-height:1.1;
+      color:var(--gold-glow); display:block;
+    }
+    .carta.espada { border-color:#4a7aad; }
+    .carta.basto  { border-color:#7a5c3a; }
+    .carta.oro    { border-color:#c9a84c; }
+    .carta.copa   { border-color:#a04a4a; }
+
+    /* ── BOTONES ──────────────────────────────────────── */
+    #panel-cantos { display:flex; gap:12px; justify-content:center; padding:12px 0 8px; flex-wrap:wrap; }
+    .btn {
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:15px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
+      padding:10px 24px; border-radius:6px; border:none; cursor:pointer;
+      transition:transform .15s, box-shadow .15s, opacity .2s;
+      position:relative; overflow:hidden;
+    }
+    .btn::after { content:''; position:absolute; inset:0; background:rgba(255,255,255,.1); opacity:0; transition:opacity .15s; }
+    .btn:hover::after { opacity:1; }
+    .btn:hover { transform:translateY(-2px); }
+    .btn:active { transform:translateY(0) scale(.97); }
+    .btn:disabled { opacity:.35; cursor:not-allowed; transform:none; }
+    #btn-repartir { background:linear-gradient(135deg,var(--gold) 0%,#a07830 100%); color:#1a1a1a; box-shadow:0 4px 20px rgba(201,168,76,.4); }
+    #btn-envido { background:linear-gradient(135deg,#2c6e49 0%,#1a4530 100%); color:#a8e6bf; border:1px solid rgba(168,230,191,.25); }
+    #btn-truco  { background:linear-gradient(135deg,var(--red) 0%,#8e1a0e 100%); color:#ffbbbb; border:1px solid rgba(255,187,187,.2); }
+
+    /* ── TOAST ────────────────────────────────────────── */
+    #toast {
+      position:fixed; top:24px; left:50%;
+      transform:translateX(-50%) translateY(-80px);
+      background:var(--ui-bg); border:var(--b-gold); border-radius:10px;
+      padding:14px 28px;
+      font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:700;
+      color:var(--gold-glow); text-align:center;
+      backdrop-filter:blur(12px); box-shadow:0 8px 40px rgba(0,0,0,.7);
+      z-index:100; transition:transform .35s cubic-bezier(.34,1.56,.64,1), opacity .35s;
+      opacity:0; pointer-events:none; max-width:90vw;
+    }
+    #toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+
+    /* ── OVERLAY ──────────────────────────────────────── */
+    #overlay {
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.82);
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      z-index:200; opacity:0; pointer-events:none;
+      transition:opacity .4s; backdrop-filter:blur(8px);
+    }
+    #overlay.show { opacity:1; pointer-events:all; }
+    #overlay h2 {
+      font-family:'Playfair Display',serif;
+      font-size:clamp(40px,8vw,72px); font-weight:900;
+      color:var(--gold-glow); text-shadow:0 0 60px rgba(232,201,106,.8);
+      margin-bottom:12px;
+    }
+    #overlay p {
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:20px; color:var(--cream-dark); letter-spacing:2px; margin-bottom:32px;
+    }
+
+    /* ── KEYFRAMES ────────────────────────────────────── */
+    @keyframes dealCard {
+      from { opacity:0; transform:translateY(40px) rotate(8deg) scale(.8); }
+      to   { opacity:1; transform:translateY(0) rotate(0) scale(1); }
+    }
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(10px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    @keyframes pulse-gold {
+      0%,100% { text-shadow:0 0 20px rgba(232,201,106,.4); }
+      50%      { text-shadow:0 0 40px rgba(232,201,106,.9),0 0 80px rgba(232,201,106,.4); }
+    }
+    @keyframes confetti-fall {
+      0%   { transform:translateY(-10px) rotate(0deg); opacity:1; }
+      100% { transform:translateY(100vh) rotate(720deg); opacity:0; }
+    }
+    .confetti-piece {
+      position:fixed; width:8px; height:14px; border-radius:2px;
+      opacity:0; animation:confetti-fall linear forwards; z-index:300; pointer-events:none;
+    }
+    .pulse { animation:pulse-gold 2s ease-in-out infinite; }
+
+    @media (max-width:480px) {
+      .carta { width:82px; height:128px; }
+      .carta .palo-icon { font-size:22px; }
+      .carta .num-top, .carta .num-bot { font-size:16px; }
+      .score-value { font-size:34px; }
+      #arena { height:180px; }
+      .fly-card { width:82px; height:128px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<div id="overlay">
+  <h2 id="overlay-title">¡GANASTE!</h2>
+  <p id="overlay-sub">Partida terminada</p>
+  <button class="btn" id="btn-nueva-partida" style="font-size:18px;padding:14px 36px;">NUEVA PARTIDA</button>
+</div>
+
+<div id="mesa">
+
+  <!-- HEADER -->
+  <div id="header">
+    <div class="score-block left">
+      <span class="score-label">Vos</span>
+      <span class="score-value" id="pts-j1">0</span>
+      <div class="pips" id="pips-j1"></div>
+    </div>
+    <div class="logo">
+      <div class="logo-text">TRUCO</div>
+      <div class="logo-sub">Argentino</div>
+    </div>
+    <div class="score-block right">
+      <span class="score-label">PC</span>
+      <span class="score-value" id="pts-j2">0</span>
+      <div class="pips" id="pips-j2"></div>
+    </div>
+  </div>
+
+  <!-- MENSAJE -->
+  <div id="mensaje-central">Apretá Repartir para empezar</div>
+
+  <!-- CARTAS PC BOCA ABAJO -->
+  <div class="zone-label">Mano de PC</div>
+  <div id="zona-pc">
+    <div class="carta-pc">♠</div>
+    <div class="carta-pc">♠</div>
+    <div class="carta-pc">♠</div>
+  </div>
+
+  <!-- ARENA: aquí vuelan las cartas -->
+  <div id="arena">
+    <!-- Las fly-cards se insertan dinámicamente -->
+    <div id="resultado-flash"></div>
+  </div>
+
+  <!-- HISTORIAL DE MANOS -->
+  <div class="zone-label">Manos jugadas</div>
+  <div id="historial"></div>
+
+  <!-- CANTOS + REPARTIR -->
+  <div style="text-align:center;margin-bottom:6px;">
+    <button class="btn" id="btn-repartir">REPARTIR RONDA</button>
+  </div>
+  <div id="panel-cantos">
+    <button class="btn" id="btn-envido" disabled>🃏 ENVIDO</button>
+    <button class="btn" id="btn-truco" disabled>⚔️ TRUCO</button>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- MANO JUGADOR -->
+  <div class="zone-label" style="margin-top:10px;">Tu Mano</div>
+  <div id="tantos-bar"></div>
+  <div id="zona-mano"></div>
+
+</div>
+
+<script>
+/* ─── CONFIG ────────────────────────────── */
+const API = 'http://127.0.0.1:8000';
+const PALO_ICON  = { Espada:'⚔️', Basto:'🪵', Oro:'🪙', Copa:'🏆' };
+const PALO_CLASS = { Espada:'espada', Basto:'basto', Oro:'oro', Copa:'copa' };
+
+/* ─── UTILS ─────────────────────────────── */
+const $ = id => document.getElementById(id);
+
+function showToast(msg, dur=3500) {
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),dur);
+}
+function animateScore(id,val,isPC=false) {
+  const el=$(id); el.textContent=val; el.classList.add('highlight');
+  setTimeout(()=>el.classList.remove('highlight'),800);
+  buildPips(isPC?'pips-j2':'pips-j1',val,isPC);
+}
+function buildPips(cid,pts,isPC) {
+  const el=$(cid); el.innerHTML='';
+  for(let i=0;i<Math.min(pts,30);i++){
+    const p=document.createElement('div');
+    p.className='pip '+(isPC?'pc-filled':'filled');
+    el.appendChild(p);
+  }
+}
+function launchConfetti(won=true) {
+  const cols=won?['#c9a84c','#e8c96a','#f5eed8','#2c6e49','#a8e6bf']:['#c0392b','#e74c3c','#555'];
+  for(let i=0;i<70;i++){
+    const el=document.createElement('div'); el.className='confetti-piece';
+    el.style.left=Math.random()*100+'vw'; el.style.top='-20px';
+    el.style.background=cols[Math.floor(Math.random()*cols.length)];
+    el.style.animationDuration=(.6+Math.random()*1.6)+'s';
+    el.style.animationDelay=(Math.random()*.8)+'s';
+    document.body.appendChild(el);
+    el.addEventListener('animationend',()=>el.remove());
+  }
+}
+
+/* ─── CONSTRUIR CARTA DE MANO ───────────── */
+function parseCarta(nombre) {
+  const [num,...rest] = nombre.split(' de ');
+  return { num, palo: rest.join(' de ') };
+}
+
+function buildHandCard(cartaInfo, indice) {
+  const { num, palo } = parseCarta(cartaInfo.nombre);
+  const div=document.createElement('div');
+  div.className=`carta ${PALO_CLASS[palo]||''}`;
+  div.style.animationDelay=(indice*.08)+'s';
+  div.style.opacity='0';
+  div.innerHTML=`
+    <span class="num-top">${num}</span>
+    <span class="palo-icon">${PALO_ICON[palo]||'?'}</span>
+    <span class="num-bot">${num}</span>
+    <div class="peso-badge">
+      <span class="pb-label">peso</span>
+      <span class="pb-num">${cartaInfo.peso}</span>
+    </div>`;
+  div.addEventListener('click',()=>{ if(!div.dataset.disabled) jugarCarta(indice,div,cartaInfo); });
+  return div;
+}
+
+/* ─── FLY-CARD FACTORY ───────────────────
+   Crea una carta animada en la arena.
+   side: 'player' (viene de abajo) | 'pc' (viene de arriba)
+   nombre: "3 de Espada", peso: número
+   startHidden: si true arranca boca abajo (reveal después)
+*/
+function createFlyCard(nombre, peso, side, startHidden=false) {
+  const { num, palo } = parseCarta(nombre);
+  const arena=$('arena');
+  const arenaRect=arena.getBoundingClientRect();
+
+  const card=document.createElement('div');
+  card.className='fly-card '+(startHidden?'face-down':'face-up');
+
+  const faceClass=PALO_CLASS[palo]||'';
+  card.innerHTML=`
+    <div class="face ${faceClass}">
+      <span class="num-top">${num}</span>
+      <span class="palo-icon">${PALO_ICON[palo]||'?'}</span>
+      <span class="num-bot">${num}</span>
+      <div class="peso-badge">
+        <span class="pb-label">peso</span>
+        <span class="pb-num">${peso}</span>
+      </div>
+    </div>
+    <div class="back">♠</div>`;
+
+  // Posición inicial fuera de arena
+  const cardW=100, cardH=152;
+  const cx=(arenaRect.width-cardW)/2;  // centro horizontal
+  card.style.left=cx+'px';
+
+  if(side==='player'){
+    card.style.bottom='0px'; card.style.top='auto';
+  } else {
+    card.style.top='0px'; card.style.bottom='auto';
+  }
+
+  arena.appendChild(card);
+  return card;
+}
+
+/* Mueve la carta al centro de la arena */
+function flyToCenter(card, side, offset=0) {
+  return new Promise(resolve=>{
+    requestAnimationFrame(()=>{
+      card.style.transition='top .5s cubic-bezier(.4,0,.2,1), bottom .5s cubic-bezier(.4,0,.2,1), transform .5s cubic-bezier(.4,0,.2,1)';
+      const arena=$('arena');
+      const arenaH=arena.clientHeight;
+      const cardH=card.clientHeight||152;
+      const midY=(arenaH-cardH)/2;
+      if(side==='player'){
+        card.style.bottom='auto';
+        card.style.top=(midY+offset)+'px';
+      } else {
+        card.style.top='auto';
+        card.style.bottom='auto';
+        card.style.top=(midY-offset)+'px';
+      }
+      setTimeout(resolve,520);
+    });
+  });
+}
+
+/* Flip boca arriba */
+function flipUp(card) {
+  return new Promise(resolve=>{
+    card.style.transition='transform .55s cubic-bezier(.4,0,.2,1)';
+    card.classList.remove('face-down');
+    card.classList.add('face-up');
+    setTimeout(resolve,580);
+  });
+}
+
+/* ─── SECUENCIA ANIMADA DE TIRADA ─────────
+   1. Tu carta vuela desde abajo al centro
+   2. Carta PC aparece arriba y baja (boca abajo)
+   3. Ambas se revelan (flip)
+   4. Flash de resultado
+   5. Cartas se encogen → mini-duelo en historial
+*/
+async function animarTirada(datos) {
+  const arena=$('arena');
+  // Limpiar cartas volando anteriores (por si quedan)
+  arena.querySelectorAll('.fly-card').forEach(c=>c.remove());
+  $('resultado-flash').classList.remove('show');
+
+  // Crear las dos fly-cards
+  const fcJ1=createFlyCard(datos.carta_tuya, datos.peso_j1||'?', 'player', false); // tuya boca arriba
+  const fcPC=createFlyCard(datos.carta_pc,   datos.peso_pc||'?', 'pc',     true);  // PC boca abajo
+
+  // Ambas vuelan al centro al mismo tiempo (offset para que no se superpongan)
+  await Promise.all([
+    flyToCenter(fcJ1,'player', 32),
+    flyToCenter(fcPC,'pc',    -32)
+  ]);
+
+  // Pequeña pausa de tensión
+  await delay(250);
+
+  // Flip de la carta de la PC
+  await flipUp(fcPC);
+
+  // Mostrar resultado en flash
+  const rf=$('resultado-flash');
+  const esWin=datos.mensaje_mano.includes('Ganaste');
+  const esDraw=datos.mensaje_mano.includes('parda')||datos.mensaje_mano.includes('Parda');
+  rf.textContent=datos.mensaje_mano;
+  rf.style.color=esWin?'var(--gold-glow)':esDraw?'var(--text-dim)':'var(--red-bright)';
+  rf.classList.add('show');
+
+  await delay(900);
+
+  // Encoger cartas y agregar mini-duelo al historial
+  [fcJ1,fcPC].forEach(c=>{
+    c.style.transition='transform .35s ease, opacity .35s ease';
+    c.style.transform='scale(.5)';
+    c.style.opacity='0';
+  });
+  await delay(380);
+  fcJ1.remove(); fcPC.remove();
+  rf.classList.remove('show');
+
+  // Mini-duelo en historial
+  const resClass=esWin?'win':esDraw?'draw':'lose';
+  const mini=document.createElement('div');
+  mini.className='mini-duelo';
+  mini.innerHTML=`
+    <div class="md-cartas">👤 ${datos.carta_tuya} &nbsp;vs&nbsp; 💻 ${datos.carta_pc}</div>
+    <div class="md-res ${resClass}">${datos.mensaje_mano}</div>`;
+  $('historial').appendChild(mini);
+}
+
+function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+/* ─── REPARTIR ───────────────────────────── */
+$('btn-repartir').addEventListener('click', async ()=>{
+  const r=await fetch(`${API}/repartir`);
+  const d=await r.json();
+
+  $('zona-mano').innerHTML='';
+  $('historial').innerHTML='';
+  // limpiar arena
+  $('arena').querySelectorAll('.fly-card').forEach(c=>c.remove());
+  $('resultado-flash').classList.remove('show');
+  $('mensaje-central').textContent='¡Elegí tu carta o cantá!';
+  $('mensaje-central').classList.remove('pulse');
+  $('tantos-bar').textContent=`Tus tantos de Envido: ${d.tantos_envido}`;
+
+  animateScore('pts-j1',d.puntos_j1,false);
+  animateScore('pts-j2',d.puntos_j2,true);
+
+  $('btn-envido').disabled=false;
+  $('btn-truco').disabled=false;
+
+  // Reconstruir cartas PC boca abajo
+  const zpc=$('zona-pc'); zpc.innerHTML='';
+  for(let i=0;i<3;i++){
+    const pc=document.createElement('div');
+    pc.className='carta-pc'; pc.textContent='♠';
+    zpc.appendChild(pc);
+  }
+
+  d.cartas_recibidas.forEach((ci,idx)=>{
+    $('zona-mano').appendChild(buildHandCard(ci,idx));
+  });
+});
+
+/* ─── ENVIDO ─────────────────────────────── */
+$('btn-envido').addEventListener('click', async ()=>{
+  $('btn-envido').disabled=true;
+  const r=await fetch(`${API}/jugar_carta`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ENVIDO'})});
+  const d=await r.json();
+  showToast(d.mensaje_canto,4500);
+  animateScore('pts-j1',d.puntos_j1,false);
+  animateScore('pts-j2',d.puntos_j2,true);
+});
+
+/* ─── TRUCO ──────────────────────────────── */
+$('btn-truco').addEventListener('click', async ()=>{
+  $('btn-truco').disabled=true;
+  const r=await fetch(`${API}/jugar_carta`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'TRUCO'})});
+  const d=await r.json();
+  showToast(d.mensaje_canto,4500);
+  animateScore('pts-j1',d.puntos_j1,false);
+  animateScore('pts-j2',d.puntos_j2,true);
+  if(d.ronda_terminada){
+    $('zona-mano').innerHTML='';
+    $('btn-envido').disabled=true;
+    $('mensaje-central').textContent='✅ Ronda finalizada';
+    $('mensaje-central').classList.add('pulse');
+    launchConfetti(true);
+  }
+});
+
+/* ─── JUGAR CARTA ────────────────────────── */
+async function jugarCarta(indice, elem, cartaInfo) {
+  // Bloquear toda interacción durante la animación
+  document.querySelectorAll('.carta').forEach(c=>c.dataset.disabled='1');
+  $('btn-envido').disabled=true;
+  $('btn-truco').disabled=true;
+
+  // Quitar carta de la mano visualmente
+  elem.style.transition='transform .2s, opacity .2s';
+  elem.style.transform='translateY(-20px) scale(.9)';
+  elem.style.opacity='0';
+  await delay(220);
+  elem.remove();
+
+  // Revelar una carta de PC boca abajo
+  const pcCards=[...$('zona-pc').querySelectorAll('.carta-pc:not(.revealed)')];
+  if(pcCards.length) pcCards[pcCards.length-1].classList.add('revealed');
+
+  // Llamar a la API
+  const r=await fetch(`${API}/jugar_carta`,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({indice_carta:indice,accion:'TIRAR'})
+  });
+  const d=await r.json();
+
+  // Enriquecer datos con pesos para la animación
+  // Extraemos los pesos de la info que ya tenemos en el DOM si están, si no usamos '?'
+  d.peso_j1 = cartaInfo.peso;
+  // El peso de la PC lo podemos obtener parseando la respuesta — 
+  // como la API no lo manda, lo buscamos en carta_pc nombre
+  d.peso_pc = '?';
+
+  // ANIMACIÓN CENTRAL
+  await animarTirada(d);
+
+  // Actualizar marcador
+  animateScore('pts-j1',d.puntos_j1,false);
+  animateScore('pts-j2',d.puntos_j2,true);
+
+  if(d.ronda_terminada){
+    $('zona-mano').innerHTML='';
+    $('btn-truco').disabled=true;
+    $('mensaje-central').textContent=d.mensaje_ronda;
+    $('mensaje-central').classList.add('pulse');
+    const ganamos=d.mensaje_ronda.includes('Ganaste');
+    showToast(d.mensaje_ronda,4000);
+    launchConfetti(ganamos);
+
+    if(d.puntos_j1>=30||d.puntos_j2>=30){
+      setTimeout(()=>{
+        $('overlay-title').textContent=d.puntos_j1>=30?'¡GANASTE!':'PC GANÓ';
+        $('overlay-sub').textContent=`Final: Vos ${d.puntos_j1} — PC ${d.puntos_j2}`;
+        $('overlay').classList.add('show');
+      },1200);
+    }
+  } else {
+    $('mensaje-central').textContent='↓ Siguiente mano';
+    // Re-habilitar cartas restantes
+    document.querySelectorAll('.carta').forEach(c=>delete c.dataset.disabled);
+    $('btn-truco').disabled=$('btn-truco').dataset.cantado==='1';
+  }
+}
+
+$('btn-nueva-partida').addEventListener('click',()=>{
+  $('overlay').classList.remove('show');
+  $('btn-repartir').click();
+});
+</script>
+</body>
+</html>
